@@ -36,6 +36,8 @@ class GitIntegration:
                 stderr = result.stderr.decode('utf-8')
                 raise RuntimeError(f'Failed to exec {cmd} cwd={self._git_path}' +
                                    f'\nstderr:\n{stderr}\nstdout\n{stdout}')
+            else:
+                log.debug(f'Exec {cmd}')
 
         log.info("Will commit and push changes to ToDo file")
         run(f'git add {self._todo_filename}')
