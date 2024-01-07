@@ -1,0 +1,12 @@
+{
+  "tok": "Token received from https://web.telegram.org/k/#@BotFather",
+
+  "DOC_poll_interval": "Seconds between polling to Telegram API - too quickly will result in throttling",
+  "poll_interval": 10,
+
+  "DOC_accepted_chat_ids": "Accepted chat IDs - any message not from this IDs will cause the server to kill itself",
+  "accepted_chat_ids": [],
+
+  "DOC_todo_filepath": "File to store ToDos",
+  "todo_filepath": "./todos.wiki.txt"
+}
