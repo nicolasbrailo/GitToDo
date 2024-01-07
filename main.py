@@ -1,5 +1,3 @@
-from git import GitIntegration
-from telegram import TelBot
 import logging
 import os
 import pathlib
@@ -11,6 +9,10 @@ sys.path.append(
     os.path.join(
         pathlib.Path(__file__).parent.resolve(),
         "./PyTelegramBot"))
+
+from git import GitIntegration
+from telegram import TelBot
+
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)

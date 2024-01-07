@@ -1,0 +1,15 @@
+[Unit]
+Description=GitToDo
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 #SRC_ROOT#/main.py
+WorkingDirectory=#RUN_PATH#
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+RestartSec=3
+User=#RUN_USER#
+
+[Install]
+WantedBy=multi-user.target
