@@ -13,7 +13,9 @@ from md_helpers import *
 class TelBot(TelegramLongpollBot):
     def __init__(self, tok, poll_interval_secs,
                  accepted_chat_ids,
-                 todo_filepath):
+                 todo_filepath,
+                 on_todo_file_updated=None):
+        self._on_todo_file_updated = on_todo_file_updated
         self._accepted_chat_ids = accepted_chat_ids
         self._todo_filepath = todo_filepath
         md_create_if_not_exists(self._todo_filepath)
@@ -24,9 +26,15 @@ class TelBot(TelegramLongpollBot):
             ('add', 'Add ToDo. Use: /add <section> <ToDo>', self._add),
             ('done', 'Mark complete. Use: /done <number>', self._mark_done),
         ]
-        super().__init__(tok,
-                         poll_interval_secs=poll_interval_secs,
-                         bot_name='NicoWikiBot', bot_descr='NicoWiki Telegram Bot', cmds=cmds)
+        super().__init__(tok, poll_interval_secs=poll_interval_secs, cmds=cmds)
+
+    def _notify_todo_file_updated(self):
+        if self._on_todo_file_updated is not None:
+            try:
+                self._on_todo_file_updated()
+            except:
+                # Never leak an exception up, an error here is not this class' responsibility
+                log.error('Error processing callback for ToDo file updated', exc_info=True)
 
     def on_bot_connected(self, bot):
         log.info('Connected to Telegram bot %s', bot.bot_info['first_name'])
@@ -69,6 +77,7 @@ class TelBot(TelegramLongpollBot):
         log.info("Add ToDo to section %s", section)
         md_add_to_section(self._todo_filepath, section, todo)
         self.send_message(msg['from']['id'], "OK")
+        self._notify_todo_file_updated()
 
     def _mark_done(self, bot, msg):
         self._validate_incoming_msg(msg)
@@ -89,4 +98,5 @@ class TelBot(TelegramLongpollBot):
             self.send_message(msg['from']['id'], "OK")
         else:
             self.send_message(msg['from']['id'], f"ToDo #{num} can't be deleted")
+        self._notify_todo_file_updated()
 

@@ -7,6 +7,7 @@ import json
 
 sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(), "./PyTelegramBot"))
 from telegram import TelBot
+from git import GitIntegration
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -20,10 +21,23 @@ log = logging.getLogger(__name__)
 
 with open('config.json', 'r') as fp:
     cfg = json.loads(fp.read())
-    bot = TelBot(cfg['tok'], cfg['poll_interval'], cfg['accepted_chat_ids'], cfg['todo_filepath'])
 
-while True:
-    log.info("RUNNING")
-    time.sleep(4)
+# Throw on any missing cfg key
+commit_delay = cfg['commit_delay_secs'] if 'commit_delay_secs' in cfg else None
+git = GitIntegration(cfg['todo_filepath'], commit_delay)
 
+bot = TelBot(cfg['tok'],
+             cfg['poll_interval'],
+             cfg['accepted_chat_ids'],
+             cfg['todo_filepath'],
+             git.on_todo_file_updated)
+
+
+log.info("Running GitToDo service. Monitoring ToDo file @ %s", cfg['todo_filepath'])
+log.info("Stop with `kill %s` or Ctrl-C", os.getpid())
+try:
+    while True:
+        time.sleep(10)
+except KeyboardInterrupt:
+    log.info("User requested service stop")
 
