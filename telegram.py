@@ -9,6 +9,7 @@ from md_helpers import (md_create_if_not_exists,
 from pytelegrambot import TelegramLongpollBot
 import json
 import logging
+import os
 import psutil
 
 log = logging.getLogger(__name__)
@@ -22,6 +23,12 @@ class TelBot(TelegramLongpollBot):
                  accepted_chat_ids,
                  todo_filepath,
                  on_todo_file_updated=None):
+
+        self._app_tainted_marker_file = "./tainted_kill_on_start"
+        if os.path.exists(self._app_tainted_marker_file):
+            log.critical("App tainted, refusing to start. Check %s", self._app_tainted_marker_file)
+            psutil.Process().terminate()
+
         self._on_todo_file_updated = on_todo_file_updated
         self._accepted_chat_ids = accepted_chat_ids
         self._todo_filepath = todo_filepath
@@ -62,6 +69,10 @@ class TelBot(TelegramLongpollBot):
         """ Called by super() """
         log.info('Telegram bot received a message: %s', msg)
 
+    def on_failed_git_op(self, msg):
+        for cid in self._accepted_chat_ids:
+            self.send_message(cid, f'Git op fail, manual fix will be needed {msg}')
+
     def _validate_incoming_msg(self, msg):
         log.info('Received command %s', msg)
         try:
@@ -71,6 +82,8 @@ class TelBot(TelegramLongpollBot):
         if not valid:
             log.error('Unauthorized access detected %s', msg)
             smsg = json.dumps(msg)
+            with open(self._app_tainted_marker_file, 'x', encoding="utf-8") as fp:
+                fp.write(f'Unauthorized access to bot {smsg}')
             for cid in self._accepted_chat_ids:
                 self.send_message(cid, f'Unauthorized access to bot {smsg}')
             # Terminating here means the message will remain unprocessed forever, and the

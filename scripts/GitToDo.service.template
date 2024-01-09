@@ -8,7 +8,9 @@ WorkingDirectory=#RUN_PATH#
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
-RestartSec=3
+StartLimitInterval=200
+StartLimitBurst=2
+RestartSec=300
 User=#RUN_USER#
 
 [Install]

@@ -38,6 +38,8 @@ bot = TelBot(cfg['tok'],
              cfg['todo_filepath'],
              git.on_todo_file_updated)
 
+git.register_failed_git_op_cb(bot.on_failed_git_op)
+
 
 log.info(
     "Running GitToDo service. Monitoring ToDo file @ %s",

@@ -21,11 +21,16 @@ class GitIntegration:
         path = pathlib.Path(todo_filepath)
         self._todo_filename = path.name
         self._git_path = path.parent.resolve()
+        self._on_failed_git_op_cb = None
         # Don't commit changes immediately, wait a while to give the user the opportunity to
         # make multiple changes in a single commit
         self._commit_delay_secs = commit_delay_secs
         self._scheduler = BackgroundScheduler()
         self._scheduler.start()
+
+    def register_failed_git_op_cb(self, cb):
+        """ Callback to be invoked when a git operation fails """
+        self._on_failed_git_op_cb = cb
 
     def on_todo_file_updated(self):
         """ Callback to notify the file under monitoring was changed """
@@ -60,7 +65,13 @@ class GitIntegration:
                     f'Failed to exec {cmd} cwd={self._git_path}' +
                     f'\nstderr:\n{stderr}\nstdout\n{stdout}')
 
-        log.info("Will commit and push changes to ToDo file")
-        run(f'git add {self._todo_filename}')
-        run('git commit -m "ToDo file updated by GitToDo"')
-        run('git push')
+        try:
+            log.info("Will commit and push changes to ToDo file")
+            run('git pull')
+            run(f'git add {self._todo_filename}')
+            run('git commit -m "ToDo file updated by GitToDo"')
+            run('git push')
+        except (subprocess.CalledProcessError, RuntimeError) as ex:
+            if self._on_failed_git_op_cb is not None:
+                self._on_failed_git_op_cb(str(ex))
+            raise
