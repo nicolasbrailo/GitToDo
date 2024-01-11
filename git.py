@@ -10,6 +10,22 @@ import subprocess
 
 log = logging.getLogger(__name__)
 
+def _run(cmd):
+    result = subprocess.run(
+        cmd,
+        cwd=self._git_path,
+        shell=True,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+    log.debug('Exec %s', cmd)
+    if result.returncode != 0:
+        stdout = result.stdout.decode('utf-8')
+        stderr = result.stderr.decode('utf-8')
+        raise RuntimeError(
+            f'Failed to exec {cmd} cwd={self._git_path}' +
+            f'\nstderr:\n{stderr}\nstdout\n{stdout}')
+
 
 class GitIntegration:
     """ Listens for a callback to on_todo_file_updated(). When called, it will
@@ -43,7 +59,7 @@ class GitIntegration:
     def _pull(self):
         try:
             log.info("Pulling git...")
-            run('git pull')
+            _run('git pull')
         except (subprocess.CalledProcessError, RuntimeError) as ex:
             if self._on_failed_git_op_cb is not None:
                 self._on_failed_git_op_cb(str(ex))
@@ -70,28 +86,12 @@ class GitIntegration:
                     seconds=self._commit_delay_secs))
 
     def _commit(self):
-        def run(cmd):
-            result = subprocess.run(
-                cmd,
-                cwd=self._git_path,
-                shell=True,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE)
-            log.debug('Exec %s', cmd)
-            if result.returncode != 0:
-                stdout = result.stdout.decode('utf-8')
-                stderr = result.stderr.decode('utf-8')
-                raise RuntimeError(
-                    f'Failed to exec {cmd} cwd={self._git_path}' +
-                    f'\nstderr:\n{stderr}\nstdout\n{stdout}')
-
         try:
             log.info("Will commit and push changes to ToDo file")
-            run('git pull')
-            run(f'git add {self._todo_filename}')
-            run('git commit -m "ToDo file updated by GitToDo"')
-            run('git push')
+            _run('git pull')
+            _run(f'git add {self._todo_filename}')
+            _run('git commit -m "ToDo file updated by GitToDo"')
+            _run('git push')
         except (subprocess.CalledProcessError, RuntimeError) as ex:
             if self._on_failed_git_op_cb is not None:
                 self._on_failed_git_op_cb(str(ex))
