@@ -1,6 +1,7 @@
 """ Git integration: will commit and push a file to git once a callback is triggered """
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime, timedelta
 
 import logging
@@ -27,6 +28,26 @@ class GitIntegration:
         self._commit_delay_secs = commit_delay_secs
         self._scheduler = BackgroundScheduler()
         self._scheduler.start()
+
+        self._scheduler.add_job(
+            self._pull,
+            trigger=CronTrigger(hour=8, minute=0, second=0),
+            id='morning_pull'
+        )
+        self._scheduler.add_job(
+            self._pull,
+            trigger=CronTrigger(hour=21, minute=0, second=0),
+            id='night_pull'
+        )
+
+    def _pull(self):
+        try:
+            log.info("Pulling git...")
+            run('git pull')
+        except (subprocess.CalledProcessError, RuntimeError) as ex:
+            if self._on_failed_git_op_cb is not None:
+                self._on_failed_git_op_cb(str(ex))
+            raise
 
     def register_failed_git_op_cb(self, cb):
         """ Callback to be invoked when a git operation fails """
