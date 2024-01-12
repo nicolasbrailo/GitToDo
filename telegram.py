@@ -10,7 +10,6 @@ from pytelegrambot import TelegramLongpollBot
 import json
 import logging
 import os
-import psutil
 
 log = logging.getLogger(__name__)
 
@@ -23,12 +22,6 @@ class TelBot(TelegramLongpollBot):
                  accepted_chat_ids,
                  todo_filepath,
                  on_todo_file_updated=None):
-
-        self._app_tainted_marker_file = "./tainted_kill_on_start"
-        if os.path.exists(self._app_tainted_marker_file):
-            log.critical("App tainted, refusing to start. Check %s", self._app_tainted_marker_file)
-            psutil.Process().terminate()
-
         self._on_todo_file_updated = on_todo_file_updated
         self._accepted_chat_ids = accepted_chat_ids
         self._todo_filepath = todo_filepath
@@ -48,7 +41,7 @@ class TelBot(TelegramLongpollBot):
              'Mark complete. Use: /done <number>',
              self._mark_done),
         ]
-        super().__init__(tok, poll_interval_secs=poll_interval_secs, cmds=cmds)
+        super().__init__(tok, self._accepted_chat_ids, poll_interval_secs=poll_interval_secs, cmds=cmds, terminate_on_unauthorized_access=True)
 
     def _notify_todo_file_updated(self):
         if self._on_todo_file_updated is not None:
@@ -73,26 +66,7 @@ class TelBot(TelegramLongpollBot):
         for cid in self._accepted_chat_ids:
             self.send_message(cid, f'Git op fail, manual fix will be needed {msg}')
 
-    def _validate_incoming_msg(self, msg):
-        log.info('Received command %s', msg)
-        try:
-            valid = msg['from']['id'] in self._accepted_chat_ids
-        except KeyError:
-            valid = False
-        if not valid:
-            log.error('Unauthorized access detected %s', msg)
-            smsg = json.dumps(msg)
-            with open(self._app_tainted_marker_file, 'x', encoding="utf-8") as fp:
-                fp.write(f'Unauthorized access to bot {smsg}')
-            for cid in self._accepted_chat_ids:
-                self.send_message(cid, f'Unauthorized access to bot {smsg}')
-            # Terminating here means the message will remain unprocessed forever, and the
-            # service will continue dying if restarted (as long as the message remains in the
-            # Telegram servers)
-            psutil.Process().terminate()
-
     def _ls(self, _bot, msg):
-        self._validate_incoming_msg(msg)
         if len(msg['cmd_args']) > 0:
             todo_list = md_get_section_contents(
                 self._todo_filepath, msg['cmd_args'][0])
@@ -101,14 +75,12 @@ class TelBot(TelegramLongpollBot):
         self.send_message(msg['from']['id'], todo_list)
 
     def _sects(self, _bot, msg):
-        self._validate_incoming_msg(msg)
         self.send_message(
             msg['from']['id'],
             md_get_sections(
                 self._todo_filepath))
 
     def _add(self, _bot, msg):
-        self._validate_incoming_msg(msg)
         section = msg['cmd_args'][0]
         todo = ' '.join(msg['cmd_args'][1:])
         log.info("Add ToDo to section %s", section)
@@ -117,7 +89,6 @@ class TelBot(TelegramLongpollBot):
         self._notify_todo_file_updated()
 
     def _mark_done(self, _bot, msg):
-        self._validate_incoming_msg(msg)
         try:
             num = int(msg['cmd_args'][0])
         except (KeyError, ValueError):
