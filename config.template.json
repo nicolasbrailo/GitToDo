@@ -8,5 +8,8 @@
   "accepted_chat_ids": [],
 
   "DOC_todo_filepath": "File to store ToDos",
-  "todo_filepath": "./todos.wiki.txt"
+  "todo_filepath": "./todos.wiki.txt",
+
+  "DOC_commit_delay_secs": "Wait time between last Telegram bot action and a commit/push to git",
+  "commit_delay_secs": 300
 }

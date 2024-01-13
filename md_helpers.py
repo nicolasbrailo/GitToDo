@@ -11,7 +11,7 @@ def md_create_if_not_exists(file_path):
         pass
 
 
-def md_get_all(md_path):
+def _md_get_content(md_path, skip_non_todos, as_line_array):
     """ Get all MD lines, add a ToDo number to lines that aren't sections """
     with open(md_path, 'r', encoding="utf-8") as file:
         lines = file.readlines()
@@ -24,11 +24,24 @@ def md_get_all(md_path):
     lns = []
     for i, line in enumerate(lines):
         if line.startswith("## ") or len(line.strip()) == 0:
-            lns.append(line)
+            if not skip_non_todos:
+                lns.append(line)
         else:
+            if line.startswith('* '):
+                line = line[len('* '):]
             lns.append(f'{i} - {line}')
 
+    if as_line_array:
+        return lns
     return ''.join(lns)
+
+
+def md_get_all_todos(md_path):
+    return _md_get_content(md_path, skip_non_todos=True, as_line_array=True)
+
+
+def md_get_all(md_path):
+    return _md_get_content(md_path, skip_non_todos=False, as_line_array=False)
 
 
 def md_get_sections(md_path):
@@ -66,6 +79,8 @@ def md_get_section_contents(md_path, section):
             if line.startswith('## ') or len(
                     line.strip()) == 0:  # Found a new section
                 break
+            if line.startswith('* '):
+                line = line[len('* '):]
             section_todos.append(f'{i} - {line}')
 
     if not section_found:
@@ -84,6 +99,9 @@ def md_add_to_section(md_path, section, txt):
 
     with open(md_path, 'r', encoding="utf-8") as file:
         lines = file.readlines()
+
+    if not txt.startswith('* '):
+        txt = '* ' + txt
 
     section_found = False
 
@@ -136,12 +154,13 @@ def md_mark_done(file_path, todo_num):
         lines = file.readlines()
 
     if lines[todo_num].startswith("## "):  # This is a section/header
-        return False
+        return None
 
+    deld_line = lines[todo_num]
     del lines[todo_num]
 
     with open(file_path, 'w', encoding="utf-8") as file:
         file.writelines(lines)
 
     md_gc_empty_sections(file_path)
-    return True
+    return deld_line

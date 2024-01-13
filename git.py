@@ -34,7 +34,7 @@ class GitIntegration:
     todo_filepath may be coalesced into a single commit. A new call to
     on_todo_file_updated() will reset the commit schedule. """
 
-    def __init__(self, todo_filepath, commit_delay_secs=30):
+    def __init__(self, todo_filepath, commit_delay_secs=300):
         path = pathlib.Path(todo_filepath)
         self._todo_filename = path.name
         self._git_path = path.parent.resolve()
@@ -88,9 +88,10 @@ class GitIntegration:
     def _commit(self):
         try:
             log.info("Will commit and push changes to ToDo file")
-            _run(self._git_path, 'git pull')
+            # This order will only work with rebase
             _run(self._git_path, f'git add {self._todo_filename}')
             _run(self._git_path, 'git commit -m "ToDo file updated by GitToDo"')
+            _run(self._git_path, 'git pull')
             _run(self._git_path, 'git push')
         except (subprocess.CalledProcessError, RuntimeError) as ex:
             if self._on_failed_git_op_cb is not None:
