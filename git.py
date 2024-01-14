@@ -15,7 +15,7 @@ def _run(cwd, cmd):
         cmd,
         cwd=cwd,
         shell=True,
-        check=True,
+        check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE)
     log.debug('Exec %s', cmd)

@@ -23,12 +23,8 @@ class TelBot(TelegramLongpollBot):
     def __init__(self, tok, poll_interval_secs,
                  accepted_chat_ids,
                  todo_filepath,
-                 on_todo_file_updated,
-                 on_reminder_todo_added,
-                 on_reminder_todo_marked_done):
+                 on_todo_file_updated):
         self._on_todo_file_updated = on_todo_file_updated
-        self._on_reminder_todo_marked_done = on_reminder_todo_marked_done
-        self._on_reminder_todo_added = on_reminder_todo_added
         self._accepted_chat_ids = accepted_chat_ids
         self._todo_filepath = todo_filepath
         md_create_if_not_exists(self._todo_filepath)
@@ -106,7 +102,6 @@ class TelBot(TelegramLongpollBot):
         md_add_to_section(self._todo_filepath, section, todo)
         self.send_message(msg['from']['id'], confirm_msg)
         self._notify_todo_file_updated()
-        self._on_reminder_todo_added(maybe_reminder, todo)
 
     def _mark_done(self, _bot, msg):
         try:
@@ -139,4 +134,7 @@ class TelBot(TelegramLongpollBot):
         else:
             log.info("Deleted ToDo #%s had a reminder set for %s", num, reminder_date)
             self.send_message(msg['from']['id'], f"OK. Also removed reminder set for {reminder_date} - {deleted_line}")
-            self._on_reminder_todo_marked_done(reminder_date, deleted_line)
+
+    def send_reminder_msg(self, txt):
+        for cid in self._accepted_chat_ids:
+            self.send_message(cid, f'Reminder! {txt}')

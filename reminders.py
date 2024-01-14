@@ -1,3 +1,5 @@
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.date import DateTrigger
 from datetime import datetime
 from datetime import timedelta
 from md_helpers import md_get_all_todos
@@ -45,16 +47,71 @@ def _extract_unit_value_from_single_value(input_str):
     else:
         return input_str, None
 
+def _text_to_number(text):
+    """ Got it from ChatGPT and fixed a few bugs, it's not very robust but it's good enough for reminders """
+    if text is None:
+        return 0
+
+    if text.isdigit():
+        return int(text)
+
+    number_mapping = {
+        'en': {
+            'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+            'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+            'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+            'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
+            'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+            'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90
+        },
+        'es': {
+            'cero': 0, 'uno': 1, 'dos': 2, 'tres': 3, 'cuatro': 4,
+            'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9,
+            'diez': 10, 'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14,
+            'quince': 15, 'dieciséis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19,
+            'veinte': 20, 'veintiuno': 21, 'veintidós': 22, 'veintitrés': 23, 'veinticuatro': 24,
+            'veinticinco': 25, 'veintiseis': 26, 'veintiséis': 26, 'veintisiete': 27, 'veintiocho': 28, 'veintinueve': 29,
+            'treinta': 30, 'cuarenta': 40, 'cincuenta': 50,
+            'sesenta': 60, 'setenta': 70, 'ochenta': 80, 'noventa': 90,
+            'cien': 100, 'doscientos': 200, 'trescientos': 300, 'cuatrocientos': 400, 'quinientos': 500,
+            'seiscientos': 600, 'setecientos': 700, 'ochocientos': 800, 'novecientos': 900
+        }
+    }
+
+    result = 0
+    current_number = 0
+
+    for lang in ['en', 'es']:
+        for word in text.lower().split():
+            if word in number_mapping[lang]:
+                current_number += number_mapping[lang][word]
+            elif word == 'hundred' and lang == 'en':
+                current_number = 100 * current_number
+            elif word == 'y' or word == 'and':
+                continue
+            else:
+                result += current_number
+                current_number = 0
+
+        result += current_number
+        if result != 0:
+            return result
+
+    return 0
+
+
 def _guess_reminder_date_from_value_and_unit(value, unit):
-    MINUTES_TOK = ['minutes', 'mins']
+    MINUTES_TOK = ['minute', 'minutes', 'mins', 'min']
     HOURS_TOK = ['hrs', 'hr', 'hour', 'hours', 'horas', 'hora']
     DAYS_TOK = ['day', 'days', 'dia', 'dias']
     WEEKS_TOK = ['week', 'weeks', 'wk', 'wks', 'semanas']
     MONTHS_TOK = ['month', 'months', 'mes', 'meses']
 
-    if not value.isdigit():
-        raise ValueError(f"Expected {value} to be a number")
+    parsed_value = _text_to_number(value)
+    if parsed_value == 0:
+        raise ValueError(f"Expected {value} to be a number, parsed it to {parsed_value}")
 
+    value = parsed_value
     target_time = datetime.now()
     if unit.lower() in MINUTES_TOK:
         target_time += timedelta(minutes=int(value))
@@ -86,7 +143,6 @@ def _guess_reminder_date_from_value_only(input_str):
     elif input_str.lower() in NIGHT_TOKS:
         target_time = datetime(current_time.year, current_time.month, current_time.day, 20, 0, 0)
     elif input_str.lower() in TOMORROW_TOKS:
-        print("X")
         target_time = datetime(current_time.year, current_time.month, current_time.day + 1, 8, 0, 0)
     elif input_str.lower() in WEEKEND_TOKS:
         if current_time.weekday() == 5:  # If today is Saturday
@@ -158,9 +214,33 @@ def get_reminder_date_if_set(todo):
 
     return reminder_date
 
-def foreach_md_line_with_set_reminder(fpath, cb):
-    for todo in md_get_all_todos(fpath):
-        reminder_date = get_reminder_date_if_set(todo)
-        if reminder_date is not None:
-            cb(reminder_date, todo)
+
+class ReminderScheduler:
+    def __init__(self, todo_filepath):
+        self._scheduler = BackgroundScheduler()
+        self._scheduler.start()
+        self._todo_filepath = todo_filepath
+        self.reload_reminders_from_file()
+
+    def register_sender(self, msg_sender):
+        self._msg_sender = msg_sender
+
+    def reload_reminders_from_file(self):
+        self._scheduler.remove_all_jobs()
+        for todo in md_get_all_todos(self._todo_filepath):
+            reminder_date = get_reminder_date_if_set(todo)
+            if reminder_date is not None and reminder_date > datetime.now():
+                self._on_reminder_todo_added(reminder_date, todo)
+
+    def _on_reminder_todo_added(self, reminder_date, todo_ln):
+        log.info("Will schedule reminder @ %s: %s", reminder_date, todo_ln)
+
+        def send_reminder():
+            log.info("Sending reminder %s", reminder_date)
+            self._msg_sender.send_reminder_msg(todo_ln)
+
+        self._scheduler.add_job(
+            send_reminder,
+            trigger=DateTrigger(reminder_date)
+        )
 

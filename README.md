@@ -14,13 +14,14 @@ Once the service is running (see the Installation section) you can use any text 
 * The Telegram bot command "/ls" will list all ToDos
 * "/sections" will list all headings in the ToDo Markdown file
 * "/ls $section" will list ToDos under a specific heading
-* "/add $section text" will add ToDo text under $section. text is limited to a few 100's of characters.
+* "/add $section text" will add ToDo text under $section. text is limited to a few 100's of characters. Optionally, set a reminder.
 * "/done <number>" will mark a ToDo as done, and remove it from the list
 
 The command /ls will assign numbers to each ToDo, which you can then use with the /done command. Note these numbers are not stable (they will change after an /add or /done).
 
 After every change to the ToDo list (/add and /done) the ToDo list will be checked in to Git and push to the origin repo, so that it may be sync'ed with other repos. Note that no smart merging is done - if a push or a pull fail, it must be resolved manually.
 
+You can add reminders to ToDos by add the tag '@remindme DATE', where DATE may be something like '5 minutes', '42 hours', 'weekend', 'tomorrow', 'tonight', etc. You'll need to check the source to see all supported tokens.
 
 # Installation
 
