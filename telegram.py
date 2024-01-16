@@ -105,35 +105,45 @@ class TelBot(TelegramLongpollBot):
 
     def _mark_done(self, _bot, msg):
         try:
-            num = int(msg['cmd_args'][0])
+            todo_nums = [int(n) for n in msg['cmd_args']]
+            todo_nums.sort(reverse=True)
         except (KeyError, ValueError):
-            self.send_message(msg['from']['id'], "Can't find ToDo number")
+            self.send_message(msg['from']['id'], "Can't find ToDo[s] {msg['cmd_args']}")
             return
 
-        log.info("Mark ToDo #%s done", num)
-        try:
-            deleted_line = md_mark_done(self._todo_filepath, num)
-        except IndexError:
-            self.send_message(msg['from']['id'], f"ToDo {num} doesn't exist")
-            return
+        # Reverse-sorting maintains todo line number while deleting
+        action_report = []
+        for num in todo_nums:
+            log.info("Mark ToDo #%s done", num)
+            try:
+                deleted_line = md_mark_done(self._todo_filepath, num)
+            except IndexError:
+                action_report.append(f"ToDo {num} doesn't exist")
+                continue
 
-        if deleted_line is None:
-            self.send_message(
-                msg['from']['id'],
-                f"ToDo #{num} can't be deleted")
-            return
+            if deleted_line is None:
+                action_report.append(f"ToDo #{num} can't be deleted")
+                continue
 
-        try:
-            self._notify_todo_file_updated()
-        except:
-            log.error("ToDo file updated listener failed", exc_info=True)
+            try:
+                self._notify_todo_file_updated()
+            except:
+                log.error("ToDo file updated listener failed", exc_info=True)
 
-        reminder_date = get_reminder_date_if_set(deleted_line)
-        if reminder_date is None:
-            self.send_message(msg['from']['id'], "OK")
+            reminder_date = get_reminder_date_if_set(deleted_line)
+            if reminder_date is None:
+                action_report.append(f"ToDo #{num} deleted")
+            else:
+                log.info("Deleted ToDo #%s had a reminder set for %s", num, reminder_date)
+                action_report.append(f"ToDo #{num} deleted. Also removed reminder set for {reminder_date}")
+
+        if len(action_report) == 0:
+            self.send_message(msg['from']['id'], f"Nothing changed?")
+        elif len(action_report) == 1:
+            self.send_message(msg['from']['id'], action_report[0])
         else:
-            log.info("Deleted ToDo #%s had a reminder set for %s", num, reminder_date)
-            self.send_message(msg['from']['id'], f"OK. Also removed reminder set for {reminder_date} - {deleted_line}")
+            self.send_message(msg['from']['id'], "\n".join(action_report))
+
 
     def send_reminder_msg(self, txt):
         for cid in self._accepted_chat_ids:
