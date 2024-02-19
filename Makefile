@@ -7,6 +7,9 @@ installdeps:
 run:
 	python3 ./main.py
 
+restartservice:
+	sudo systemctl restart GitToDo.service && journalctl -f -u GitToDo.service
+
 lint.log: *.py
 	autopep8 -r --in-place --aggressive --aggressive . | tee lint.log
 	python3 -m pylint *.py --disable=C0411 | tee --append lint.log

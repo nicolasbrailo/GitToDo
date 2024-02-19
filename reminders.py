@@ -8,6 +8,7 @@ import re
 
 log = logging.getLogger(__name__)
 
+
 def _extract_reminder(text, trigger_token):
     # Find the position of the trigger_token
     trigger_position = text.find(trigger_token)
@@ -25,14 +26,16 @@ def _extract_reminder(text, trigger_token):
     # Use split(None, 1) to split by all whitespaces
     tokens = remaining_text.split(None, 1)
     if len(tokens) == 0:
-        raise ValueError(f"Can't finder @reminder time in {text}, reminder seems empty")
+        raise ValueError(
+            f"Can't finder @reminder time in {text}, reminder seems empty")
 
     if not tokens[0].isdigit():
         return (tokens[0].strip().lower(), None)
 
     # Check if the next token is a number, if so we need a unit too (eg 2 days)
     if len(tokens) == 1:
-        raise ValueError(f"Found reminder for {tokens[0]}, but can't find its unit of time")
+        raise ValueError(
+            f"Found reminder for {tokens[0]}, but can't find its unit of time")
 
     return (tokens[0].strip().lower(), tokens[1].strip().lower())
 
@@ -47,6 +50,7 @@ def _extract_unit_value_from_single_value(input_str):
     else:
         return input_str, None
 
+
 def _text_to_number(text):
     """ Got it from ChatGPT and fixed a few bugs, it's not very robust but it's good enough for reminders """
     if text is None:
@@ -57,26 +61,82 @@ def _text_to_number(text):
 
     number_mapping = {
         'en': {
-            'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
-            'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
-            'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
-            'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
-            'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
-            'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90
-        },
+            'zero': 0,
+            'one': 1,
+            'two': 2,
+            'three': 3,
+            'four': 4,
+            'five': 5,
+            'six': 6,
+            'seven': 7,
+            'eight': 8,
+            'nine': 9,
+            'ten': 10,
+            'eleven': 11,
+            'twelve': 12,
+            'thirteen': 13,
+            'fourteen': 14,
+            'fifteen': 15,
+            'sixteen': 16,
+            'seventeen': 17,
+            'eighteen': 18,
+            'nineteen': 19,
+            'twenty': 20,
+            'thirty': 30,
+            'forty': 40,
+            'fifty': 50,
+            'sixty': 60,
+            'seventy': 70,
+            'eighty': 80,
+            'ninety': 90},
         'es': {
-            'cero': 0, 'uno': 1, 'dos': 2, 'tres': 3, 'cuatro': 4,
-            'cinco': 5, 'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9,
-            'diez': 10, 'once': 11, 'doce': 12, 'trece': 13, 'catorce': 14,
-            'quince': 15, 'dieciséis': 16, 'diecisiete': 17, 'dieciocho': 18, 'diecinueve': 19,
-            'veinte': 20, 'veintiuno': 21, 'veintidós': 22, 'veintitrés': 23, 'veinticuatro': 24,
-            'veinticinco': 25, 'veintiseis': 26, 'veintiséis': 26, 'veintisiete': 27, 'veintiocho': 28, 'veintinueve': 29,
-            'treinta': 30, 'cuarenta': 40, 'cincuenta': 50,
-            'sesenta': 60, 'setenta': 70, 'ochenta': 80, 'noventa': 90,
-            'cien': 100, 'doscientos': 200, 'trescientos': 300, 'cuatrocientos': 400, 'quinientos': 500,
-            'seiscientos': 600, 'setecientos': 700, 'ochocientos': 800, 'novecientos': 900
-        }
-    }
+            'cero': 0,
+            'uno': 1,
+            'dos': 2,
+            'tres': 3,
+            'cuatro': 4,
+            'cinco': 5,
+            'seis': 6,
+            'siete': 7,
+            'ocho': 8,
+            'nueve': 9,
+            'diez': 10,
+            'once': 11,
+            'doce': 12,
+            'trece': 13,
+            'catorce': 14,
+            'quince': 15,
+            'dieciséis': 16,
+            'diecisiete': 17,
+            'dieciocho': 18,
+            'diecinueve': 19,
+            'veinte': 20,
+            'veintiuno': 21,
+            'veintidós': 22,
+            'veintitrés': 23,
+            'veinticuatro': 24,
+            'veinticinco': 25,
+            'veintiseis': 26,
+            'veintiséis': 26,
+            'veintisiete': 27,
+            'veintiocho': 28,
+            'veintinueve': 29,
+            'treinta': 30,
+            'cuarenta': 40,
+            'cincuenta': 50,
+            'sesenta': 60,
+            'setenta': 70,
+            'ochenta': 80,
+            'noventa': 90,
+            'cien': 100,
+            'doscientos': 200,
+            'trescientos': 300,
+            'cuatrocientos': 400,
+            'quinientos': 500,
+            'seiscientos': 600,
+            'setecientos': 700,
+            'ochocientos': 800,
+            'novecientos': 900}}
 
     result = 0
     current_number = 0
@@ -109,7 +169,8 @@ def _guess_reminder_date_from_value_and_unit(value, unit):
 
     parsed_value = _text_to_number(value)
     if parsed_value == 0:
-        raise ValueError(f"Expected {value} to be a number, parsed it to {parsed_value}")
+        raise ValueError(
+            f"Expected {value} to be a number, parsed it to {parsed_value}")
 
     value = parsed_value
     target_time = datetime.now()
@@ -127,6 +188,7 @@ def _guess_reminder_date_from_value_and_unit(value, unit):
         return None
     return target_time
 
+
 def _guess_reminder_date_from_value_only(input_str):
     MORNING_TOKS = ['maniana', 'morning', 'early', 'temprano']
     AFTERNOON_TOKS = ['noon', 'afternoon']
@@ -137,19 +199,55 @@ def _guess_reminder_date_from_value_only(input_str):
     current_time = datetime.now()
     target_time = None
     if input_str.lower() in MORNING_TOKS:
-        target_time = datetime(current_time.year, current_time.month, current_time.day, 8, 0, 0)
+        target_time = datetime(
+            current_time.year,
+            current_time.month,
+            current_time.day,
+            8,
+            0,
+            0)
     elif input_str.lower() in AFTERNOON_TOKS:
-        target_time = datetime(current_time.year, current_time.month, current_time.day, 13, 0, 0)
+        target_time = datetime(
+            current_time.year,
+            current_time.month,
+            current_time.day,
+            13,
+            0,
+            0)
     elif input_str.lower() in NIGHT_TOKS:
-        target_time = datetime(current_time.year, current_time.month, current_time.day, 20, 0, 0)
+        target_time = datetime(
+            current_time.year,
+            current_time.month,
+            current_time.day,
+            20,
+            0,
+            0)
     elif input_str.lower() in TOMORROW_TOKS:
-        target_time = datetime(current_time.year, current_time.month, current_time.day + 1, 8, 0, 0)
+        target_time = datetime(
+            current_time.year,
+            current_time.month,
+            current_time.day + 1,
+            8,
+            0,
+            0)
     elif input_str.lower() in WEEKEND_TOKS:
         if current_time.weekday() == 5:  # If today is Saturday
-            target_time = datetime(current_time.year, current_time.month, current_time.day, 9, 0, 0) + timedelta(days=7)
+            target_time = datetime(current_time.year,
+                                   current_time.month,
+                                   current_time.day,
+                                   9,
+                                   0,
+                                   0) + timedelta(days=7)
         else:
-            target_time = datetime(current_time.year, current_time.month, current_time.day, 9, 0, 0)
-            days_until_saturday = (5 - current_time.weekday() + 7) % 7  # Calculate days until Saturday
+            target_time = datetime(
+                current_time.year,
+                current_time.month,
+                current_time.day,
+                9,
+                0,
+                0)
+            # Calculate days until Saturday
+            days_until_saturday = (5 - current_time.weekday() + 7) % 7
             target_time += timedelta(days=days_until_saturday)
 
     if target_time is None:
@@ -161,8 +259,9 @@ def _guess_reminder_date_from_value_only(input_str):
     return target_time
 
 
-DEFAULT_REMINDER_TOK='@remindme'
+DEFAULT_REMINDER_TOK = '@remindme'
 DEFAULT_REMINDER_SET_TOK = '@remind_at'
+
 
 def guess_reminder_date(todo_ln, reminder_tok=None):
     if reminder_tok is None:
@@ -188,7 +287,11 @@ def mark_for_reminder_date(ln, date):
 
 
 def _try_parse_reminder_date(date_string):
-    formats_to_try = ['%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d']
+    formats_to_try = [
+        '%Y-%m-%d %H:%M:%S.%f',
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        '%Y-%m-%d']
 
     for date_format in formats_to_try:
         try:
@@ -199,9 +302,10 @@ def _try_parse_reminder_date(date_string):
 
     return None
 
+
 def get_reminder_date_if_set(todo):
     reminder_set_tok = f'[{DEFAULT_REMINDER_SET_TOK} '
-    if not reminder_set_tok in todo:
+    if reminder_set_tok not in todo:
         return None
 
     start = todo.find(reminder_set_tok) + len(reminder_set_tok)
@@ -243,4 +347,3 @@ class ReminderScheduler:
             send_reminder,
             trigger=DateTrigger(reminder_date)
         )
-

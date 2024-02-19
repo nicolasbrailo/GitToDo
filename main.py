@@ -1,18 +1,11 @@
+from telegram import TelBot
+from reminders import ReminderScheduler
+from git import GitIntegration
 import logging
 import os
-import pathlib
 import sys
 import time
 import json
-
-sys.path.append(
-    os.path.join(
-        pathlib.Path(__file__).parent.resolve(),
-        "./PyTelegramBot"))
-
-from git import GitIntegration
-from reminders import ReminderScheduler
-from telegram import TelBot
 
 
 root = logging.getLogger()
@@ -34,15 +27,19 @@ commit_delay = cfg['commit_delay_secs'] if 'commit_delay_secs' in cfg else None
 git = GitIntegration(cfg['todo_filepath'], commit_delay)
 reminders = ReminderScheduler(cfg['todo_filepath'])
 
+
 def on_file_updated():
     git.on_todo_file_updated()
     reminders.reload_reminders_from_file()
+
 
 bot = TelBot(cfg['tok'],
              cfg['poll_interval'],
              cfg['accepted_chat_ids'],
              cfg['todo_filepath'],
-             on_file_updated)
+             on_file_updated,
+             git.pull,
+             git.commit)
 
 git.register_failed_git_op_cb(bot.on_failed_git_op)
 reminders.register_sender(bot)

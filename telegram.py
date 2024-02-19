@@ -1,5 +1,16 @@
 """ ToDo list Telegram bot: integrates a file-backed ToDo list with a Telegram set of commands """
 
+import json
+import os
+import sys
+import pathlib
+
+sys.path.append(
+    os.path.join(
+        pathlib.Path(__file__).parent.resolve(),
+        "./PyTelegramBot"))
+
+
 from md_helpers import (md_create_if_not_exists,
                         md_get_all,
                         md_get_sections,
@@ -9,10 +20,7 @@ from md_helpers import (md_create_if_not_exists,
 from pytelegrambot import TelegramLongpollBot
 from reminders import guess_reminder_date, mark_for_reminder_date, get_reminder_date_if_set
 
-import json
 import logging
-import os
-
 log = logging.getLogger(__name__)
 
 
@@ -23,8 +31,12 @@ class TelBot(TelegramLongpollBot):
     def __init__(self, tok, poll_interval_secs,
                  accepted_chat_ids,
                  todo_filepath,
-                 on_todo_file_updated):
+                 on_todo_file_updated,
+                 force_pull_cb,
+                 force_push_cb):
         self._on_todo_file_updated = on_todo_file_updated
+        self._force_pull_cb = force_pull_cb
+        self._force_push_cb = force_push_cb
         self._accepted_chat_ids = accepted_chat_ids
         self._todo_filepath = todo_filepath
         md_create_if_not_exists(self._todo_filepath)
@@ -42,8 +54,19 @@ class TelBot(TelegramLongpollBot):
             ('done',
              'Mark complete. Use: /done <number>',
              self._mark_done),
+            ('pull',
+             'Force git pull',
+             self._force_pull),
+            ('push',
+             'Force commit and push, in case external changes to files where not pushed',
+             self._force_push),
         ]
-        super().__init__(tok, self._accepted_chat_ids, poll_interval_secs=poll_interval_secs, cmds=cmds, terminate_on_unauthorized_access=True)
+        super().__init__(
+            tok,
+            self._accepted_chat_ids,
+            poll_interval_secs=poll_interval_secs,
+            cmds=cmds,
+            terminate_on_unauthorized_access=True)
 
     def _notify_todo_file_updated(self):
         try:
@@ -65,7 +88,8 @@ class TelBot(TelegramLongpollBot):
 
     def on_failed_git_op(self, msg):
         for cid in self._accepted_chat_ids:
-            self.send_message(cid, f'Git op fail, manual fix will be needed {msg}')
+            self.send_message(
+                cid, f'Git op fail, manual fix will be needed {msg}')
 
     def _ls(self, _bot, msg):
         if len(msg['cmd_args']) > 0:
@@ -92,7 +116,10 @@ class TelBot(TelegramLongpollBot):
         except ValueError as ex:
             maybe_reminder = None
             confirm_msg = f"ToDo added. Detected a reminder, but can't parse it: {ex}"
-            log.info("User sent reminder we can't parse for %s: %s", todo.strip(), str(ex))
+            log.info(
+                "User sent reminder we can't parse for %s: %s",
+                todo.strip(),
+                str(ex))
 
         if maybe_reminder is not None:
             log.info("ToDo will have reminder @ %s", maybe_reminder)
@@ -108,7 +135,9 @@ class TelBot(TelegramLongpollBot):
             todo_nums = [int(n) for n in msg['cmd_args']]
             todo_nums.sort(reverse=True)
         except (KeyError, ValueError):
-            self.send_message(msg['from']['id'], "Can't find ToDo[s] {msg['cmd_args']}")
+            self.send_message(
+                msg['from']['id'],
+                "Can't find ToDo[s] {msg['cmd_args']}")
             return
 
         # Reverse-sorting maintains todo line number while deleting
@@ -127,15 +156,19 @@ class TelBot(TelegramLongpollBot):
 
             try:
                 self._notify_todo_file_updated()
-            except:
+            except BaseException:
                 log.error("ToDo file updated listener failed", exc_info=True)
 
             reminder_date = get_reminder_date_if_set(deleted_line)
             if reminder_date is None:
                 action_report.append(f"ToDo #{num} deleted")
             else:
-                log.info("Deleted ToDo #%s had a reminder set for %s", num, reminder_date)
-                action_report.append(f"ToDo #{num} deleted. Also removed reminder set for {reminder_date}")
+                log.info(
+                    "Deleted ToDo #%s had a reminder set for %s",
+                    num,
+                    reminder_date)
+                action_report.append(
+                    f"ToDo #{num} deleted. Also removed reminder set for {reminder_date}")
 
         if len(action_report) == 0:
             self.send_message(msg['from']['id'], f"Nothing changed?")
@@ -144,6 +177,15 @@ class TelBot(TelegramLongpollBot):
         else:
             self.send_message(msg['from']['id'], "\n".join(action_report))
 
+    def _force_pull(self, _bot, msg):
+        log.info("User requested force push in command %s", msg)
+        self._force_pull_cb()
+        self.send_message(msg['from']['id'], "Pull complete")
+
+    def _force_push(self, _bot, msg):
+        log.info("User requested force push in command %s", msg)
+        self._force_push_cb()
+        self.send_message(msg['from']['id'], "Push complete")
 
     def send_reminder_msg(self, txt):
         for cid in self._accepted_chat_ids:

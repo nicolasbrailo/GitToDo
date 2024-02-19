@@ -10,6 +10,7 @@ import subprocess
 
 log = logging.getLogger(__name__)
 
+
 def _run(cwd, cmd):
     result = subprocess.run(
         cmd,
@@ -46,17 +47,17 @@ class GitIntegration:
         self._scheduler.start()
 
         self._scheduler.add_job(
-            self._pull,
+            self.pull,
             trigger=CronTrigger(hour=8, minute=0, second=0),
             id='morning_pull'
         )
         self._scheduler.add_job(
-            self._pull,
+            self.pull,
             trigger=CronTrigger(hour=21, minute=0, second=0),
             id='night_pull'
         )
 
-    def _pull(self):
+    def pull(self):
         try:
             log.info("Pulling git...")
             _run(self._git_path, 'git pull')
@@ -72,20 +73,20 @@ class GitIntegration:
     def on_todo_file_updated(self):
         """ Callback to notify the file under monitoring was changed """
         if self._commit_delay_secs is None:
-            self._commit()
+            self.commit()
         else:
             log.info(
                 "ToDo change notification, will schedule a commit in %s seconds",
                 self._commit_delay_secs)
             self._scheduler.remove_all_jobs()
             self._scheduler.add_job(
-                self._commit,
+                self.commit,
                 'date',
                 run_date=datetime.now() +
                 timedelta(
                     seconds=self._commit_delay_secs))
 
-    def _commit(self):
+    def commit(self):
         try:
             log.info("Will commit and push changes to ToDo file")
             # This order will only work with rebase
