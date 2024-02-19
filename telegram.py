@@ -1,26 +1,15 @@
 """ ToDo list Telegram bot: integrates a file-backed ToDo list with a Telegram set of commands """
 
-import json
-import os
-import sys
-import pathlib
-
-sys.path.append(
-    os.path.join(
-        pathlib.Path(__file__).parent.resolve(),
-        "./PyTelegramBot"))
-
-
+import logging
+from reminders import guess_reminder_date, mark_for_reminder_date, get_reminder_date_if_set
+from pytelegrambot import TelegramLongpollBot
 from md_helpers import (md_create_if_not_exists,
                         md_get_all,
                         md_get_sections,
                         md_get_section_contents,
                         md_add_to_section,
                         md_mark_done)
-from pytelegrambot import TelegramLongpollBot
-from reminders import guess_reminder_date, mark_for_reminder_date, get_reminder_date_if_set
 
-import logging
 log = logging.getLogger(__name__)
 
 
@@ -87,6 +76,7 @@ class TelBot(TelegramLongpollBot):
         log.info('Telegram bot received a message: %s', msg)
 
     def on_failed_git_op(self, msg):
+        """ Notify bot of a failed git op, to notify a user """
         for cid in self._accepted_chat_ids:
             self.send_message(
                 cid, f'Git op fail, manual fix will be needed {msg}')
@@ -156,7 +146,7 @@ class TelBot(TelegramLongpollBot):
 
             try:
                 self._notify_todo_file_updated()
-            except BaseException:
+            except BaseException:  # pylint: disable=broad-exception-caught
                 log.error("ToDo file updated listener failed", exc_info=True)
 
             reminder_date = get_reminder_date_if_set(deleted_line)
@@ -171,7 +161,7 @@ class TelBot(TelegramLongpollBot):
                     f"ToDo #{num} deleted. Also removed reminder set for {reminder_date}")
 
         if len(action_report) == 0:
-            self.send_message(msg['from']['id'], f"Nothing changed?")
+            self.send_message(msg['from']['id'], "Nothing changed?")
         elif len(action_report) == 1:
             self.send_message(msg['from']['id'], action_report[0])
         else:
@@ -188,5 +178,6 @@ class TelBot(TelegramLongpollBot):
         self.send_message(msg['from']['id'], "Push complete")
 
     def send_reminder_msg(self, txt):
+        """ Notify all registered users of a reminder triggering """
         for cid in self._accepted_chat_ids:
             self.send_message(cid, f'Reminder! {txt}')

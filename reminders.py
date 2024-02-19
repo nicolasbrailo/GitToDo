@@ -1,3 +1,5 @@
+""" Helpers and schedulers to parse strings into dates, and set reminders based on them """
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
 from datetime import datetime
@@ -47,12 +49,12 @@ def _extract_unit_value_from_single_value(input_str):
         digits = match.group(1).strip()
         rest = match.group(2).strip()
         return digits, rest
-    else:
-        return input_str, None
+    return input_str, None
 
 
 def _text_to_number(text):
-    """ Got it from ChatGPT and fixed a few bugs, it's not very robust but it's good enough for reminders """
+    """ Got it from ChatGPT and fixed a few bugs, it's not very robust but it's good
+    enough for reminders """
     if text is None:
         return 0
 
@@ -147,7 +149,7 @@ def _text_to_number(text):
                 current_number += number_mapping[lang][word]
             elif word == 'hundred' and lang == 'en':
                 current_number = 100 * current_number
-            elif word == 'y' or word == 'and':
+            elif word in ('y', 'and'):
                 continue
             else:
                 result += current_number
@@ -264,6 +266,7 @@ DEFAULT_REMINDER_SET_TOK = '@remind_at'
 
 
 def guess_reminder_date(todo_ln, reminder_tok=None):
+    """ Try to parse an absolute date from a user proivded one """
     if reminder_tok is None:
         reminder_tok = DEFAULT_REMINDER_TOK
 
@@ -282,8 +285,12 @@ def guess_reminder_date(todo_ln, reminder_tok=None):
     return _guess_reminder_date_from_value_and_unit(value, unit)
 
 
-def mark_for_reminder_date(ln, date):
-    return f'{ln.strip()} [{DEFAULT_REMINDER_SET_TOK} {date}]'
+def mark_for_reminder_date(line, date):
+    """ Append a well known token with the absolute date at which a reminder needs to trigger.
+    This is done so that we don't have to guess dates all over again: when a ToDo is first
+    added, we'll search for a reminder. If one is found, an absolute date is saved. On todo file
+    (re)load we just need to look for the absolute date token, and a good-known date format. """
+    return f'{line.strip()} [{DEFAULT_REMINDER_SET_TOK} {date}]'
 
 
 def _try_parse_reminder_date(date_string):
@@ -304,6 +311,7 @@ def _try_parse_reminder_date(date_string):
 
 
 def get_reminder_date_if_set(todo):
+    """ Parse a log line. If the line has a @reminder token, will try to parse the date """
     reminder_set_tok = f'[{DEFAULT_REMINDER_SET_TOK} '
     if reminder_set_tok not in todo:
         return None
@@ -320,16 +328,21 @@ def get_reminder_date_if_set(todo):
 
 
 class ReminderScheduler:
+    """ Manages reminders in a todo file, sends notifications when reminders trigger """
+
     def __init__(self, todo_filepath):
         self._scheduler = BackgroundScheduler()
         self._scheduler.start()
         self._todo_filepath = todo_filepath
         self.reload_reminders_from_file()
+        self._msg_sender = None
 
     def register_sender(self, msg_sender):
+        """ Telegram bot - split from init to avoid init circular dep """
         self._msg_sender = msg_sender
 
     def reload_reminders_from_file(self):
+        """ Reset and reload all reminders (useful if a file changes) """
         self._scheduler.remove_all_jobs()
         for todo in md_get_all_todos(self._todo_filepath):
             reminder_date = get_reminder_date_if_set(todo)

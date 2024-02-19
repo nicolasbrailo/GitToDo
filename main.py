@@ -1,12 +1,20 @@
+""" Manage a git repo as a ToDo list with Telegram integration """
+
+import json
+import logging
+import os
+import pathlib
+import sys
+import time
+
+sys.path.append(
+    os.path.join(
+        pathlib.Path(__file__).parent.resolve(),
+        "./PyTelegramBot"))
+
 from telegram import TelBot
 from reminders import ReminderScheduler
 from git import GitIntegration
-import logging
-import os
-import sys
-import time
-import json
-
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -29,6 +37,7 @@ reminders = ReminderScheduler(cfg['todo_filepath'])
 
 
 def on_file_updated():
+    """ Trampoline for all actions required on file update """
     git.on_todo_file_updated()
     reminders.reload_reminders_from_file()
 

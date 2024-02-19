@@ -58,6 +58,7 @@ class GitIntegration:
         )
 
     def pull(self):
+        """ Pull changes from remote """
         try:
             log.info("Pulling git...")
             _run(self._git_path, 'git pull')
@@ -66,9 +67,9 @@ class GitIntegration:
                 self._on_failed_git_op_cb(str(ex))
             raise
 
-    def register_failed_git_op_cb(self, cb):
+    def register_failed_git_op_cb(self, fail_git_op_cb):
         """ Callback to be invoked when a git operation fails """
-        self._on_failed_git_op_cb = cb
+        self._on_failed_git_op_cb = fail_git_op_cb
 
     def on_todo_file_updated(self):
         """ Callback to notify the file under monitoring was changed """
@@ -87,6 +88,7 @@ class GitIntegration:
                     seconds=self._commit_delay_secs))
 
     def commit(self):
+        """ Commit and push changes to managed repo """
         try:
             log.info("Will commit and push changes to ToDo file")
             # This order will only work with rebase

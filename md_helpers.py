@@ -37,10 +37,12 @@ def _md_get_content(md_path, skip_non_todos, as_line_array):
 
 
 def md_get_all_todos(md_path):
+    """ Return all ToDos in an md file """
     return _md_get_content(md_path, skip_non_todos=True, as_line_array=True)
 
 
 def md_get_all(md_path):
+    """ Return everything in an md file, including blank lines and unknown things """
     return _md_get_content(md_path, skip_non_todos=False, as_line_array=False)
 
 
