@@ -278,15 +278,16 @@ def _guess_reminder_date_from_value_only(input_str):
 
 
 DEFAULT_REMINDER_TOK = '@remindme'
+ALT_REMINDER_TOK = '@r'
 DEFAULT_REMINDER_SET_TOK = '@remind_at'
 
 
-def guess_reminder_date(todo_ln, reminder_tok=None):
+def guess_reminder_date(todo_ln):
     """ Try to parse an absolute date from a user proivded one """
-    if reminder_tok is None:
-        reminder_tok = DEFAULT_REMINDER_TOK
+    reminder = _extract_reminder(todo_ln, DEFAULT_REMINDER_TOK)
+    if not reminder:
+        reminder = _extract_reminder(todo_ln, ALT_REMINDER_TOK)
 
-    reminder = _extract_reminder(todo_ln, reminder_tok)
     if not reminder:
         return None
 
