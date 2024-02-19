@@ -10,48 +10,6 @@ import re
 
 log = logging.getLogger(__name__)
 
-
-def _extract_reminder(text, trigger_token):
-    # Find the position of the trigger_token
-    trigger_position = text.find(trigger_token)
-
-    if trigger_position == -1:
-        return None
-
-    # Extract the substring starting from the position after the trigger_token
-    start_position = trigger_position + len(trigger_token)
-    remaining_text = text[start_position:].strip()
-
-    if not remaining_text:
-        raise ValueError(f"Can't finder @reminder time in ToDo: '{text}'")
-
-    # Use split(None, 1) to split by all whitespaces
-    tokens = remaining_text.split(None, 1)
-    if len(tokens) == 0:
-        raise ValueError(
-            f"Can't finder @reminder time in {text}, reminder seems empty")
-
-    if not tokens[0].isdigit():
-        return (tokens[0].strip().lower(), None)
-
-    # Check if the next token is a number, if so we need a unit too (eg 2 days)
-    if len(tokens) == 1:
-        raise ValueError(
-            f"Found reminder for {tokens[0]}, but can't find its unit of time")
-
-    return (tokens[0].strip().lower(), tokens[1].strip().lower())
-
-
-def _extract_unit_value_from_single_value(input_str):
-    """ Try to break a line like '25th' into unit/value (25, th) """
-    match = re.match(r'(\d+)(.*)', input_str)
-    if match:
-        digits = match.group(1).strip()
-        rest = match.group(2).strip()
-        return digits, rest
-    return input_str, None
-
-
 def _text_to_number(text):
     """ Got it from ChatGPT and fixed a few bugs, it's not very robust but it's good
     enough for reminders """
@@ -162,7 +120,60 @@ def _text_to_number(text):
     return 0
 
 
+def _extract_reminder(text, trigger_token):
+    # Tokens to skip (eg if format is 'in two weeks', we don't care about 'in')
+    TOKS_TO_IGNORE = ['in', 'at']
+
+    # Find the position of the trigger_token
+    trigger_position = text.find(trigger_token)
+
+    if trigger_position == -1:
+        return None
+
+    # Extract the substring starting from the position after the trigger_token
+    start_position = trigger_position + len(trigger_token)
+    remaining_text = text[start_position:].strip()
+
+    if not remaining_text:
+        raise ValueError(f"Can't finder @reminder time in ToDo: '{text}'")
+
+    # split by all whitespaces
+    tokens = remaining_text.split()
+    if len(tokens) == 0:
+        raise ValueError(
+            f"Can't finder @reminder time in {text}, reminder seems empty")
+
+    # TODO: Need to consume as many tokens as possible, in case it's a number with spaces
+    tok_0_is_num = _text_to_number(tokens[0]) != 0
+    if not tok_0_is_num and not tokens[0].strip().lower() in TOKS_TO_IGNORE:
+        return (tokens[0].strip().lower(), None)
+
+    # Check if the next token is a number, if so we need a unit too (eg 2 days)
+    if len(tokens) == 1:
+        raise ValueError(
+            f"Found reminder for {tokens[0]}, but can't find its unit of time")
+
+    if tokens[0].strip().lower() in TOKS_TO_IGNORE and len(tokens) > 2:
+        # If the first token is ignorable, return toks 2 and 3 (eg if format is
+        # '@reminder in 2 weeks', then skip 'in' and return (2, weeks)
+        return (tokens[1].strip().lower(), tokens[2].strip().lower())
+
+    return (tokens[0].strip().lower(), tokens[1].strip().lower())
+
+
+def _extract_unit_value_from_single_value(input_str):
+    """ Try to break a line like '25th' into unit/value (25, th) """
+    match = re.match(r'(\d+)(.*)', input_str)
+    if match:
+        digits = match.group(1).strip()
+        rest = match.group(2).strip()
+        return digits, rest
+    return input_str, None
+
+
+
 def _guess_reminder_date_from_value_and_unit(value, unit):
+    ABSOLUTE_TIME_TOK = ['am', 'pm']
     MINUTES_TOK = ['minute', 'minutes', 'mins', 'min']
     HOURS_TOK = ['hrs', 'hr', 'hour', 'hours', 'horas', 'hora']
     DAYS_TOK = ['day', 'days', 'dia', 'dias']
@@ -186,6 +197,11 @@ def _guess_reminder_date_from_value_and_unit(value, unit):
         target_time += timedelta(weeks=int(value))
     elif unit.lower() in MONTHS_TOK:
         target_time += timedelta(months=int(value))
+    elif unit.lower() in ABSOLUTE_TIME_TOK:
+        if unit.lower() == 'am':
+            target_time = target_time.replace(hour=int(value), minute=0, second=0, microsecond=0)
+        else:
+            target_time = target_time.replace(hour=int(value)+12, minute=0, second=0, microsecond=0)
     else:
         return None
     return target_time
