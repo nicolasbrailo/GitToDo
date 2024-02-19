@@ -55,7 +55,8 @@ class TelBot(TelegramLongpollBot):
             self._accepted_chat_ids,
             poll_interval_secs=poll_interval_secs,
             cmds=cmds,
-            terminate_on_unauthorized_access=True)
+            terminate_on_unauthorized_access=True,
+            try_parse_msg_as_cmd=True)
 
     def _notify_todo_file_updated(self):
         try:
