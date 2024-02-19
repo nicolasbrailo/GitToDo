@@ -17,7 +17,9 @@ class TelBot(TelegramLongpollBot):
     """ Listen to a set of commands on Telegram, and apply them to a list of ToDos backed
     by a Markdown file """
 
-    def __init__(self, tok, poll_interval_secs,
+    def __init__(self, tok,
+                 short_poll_interval_secs,
+                 long_poll_interval_secs,
                  accepted_chat_ids,
                  todo_filepath,
                  on_todo_file_updated,
@@ -53,7 +55,8 @@ class TelBot(TelegramLongpollBot):
         super().__init__(
             tok,
             self._accepted_chat_ids,
-            poll_interval_secs=poll_interval_secs,
+            short_poll_interval_secs,
+            long_poll_interval_secs,
             cmds=cmds,
             terminate_on_unauthorized_access=True,
             try_parse_msg_as_cmd=True)

@@ -43,7 +43,8 @@ def on_file_updated():
 
 
 bot = TelBot(cfg['tok'],
-             cfg['poll_interval'],
+             cfg['short_poll_interval'],
+             cfg['long_poll_interval'],
              cfg['accepted_chat_ids'],
              cfg['todo_filepath'],
              on_file_updated,
