@@ -166,3 +166,35 @@ def md_mark_done(file_path, todo_num):
 
     md_gc_empty_sections(file_path)
     return deld_line
+
+
+def md_move_todo(file_path, todo_num, direction):
+    """ Move a ToDo up or down by swapping with adjacent line.
+        direction: -1 for up, 1 for down
+        Returns True if moved, False otherwise """
+    with open(file_path, 'r', encoding="utf-8") as file:
+        lines = file.readlines()
+
+    if todo_num < 0 or todo_num >= len(lines):
+        return False
+
+    # Can't move section headers
+    if lines[todo_num].startswith("## "):
+        return False
+
+    target_num = todo_num + direction
+
+    if target_num < 0 or target_num >= len(lines):
+        return False
+
+    # Can't swap with section headers or empty lines
+    if lines[target_num].startswith("## ") or len(lines[target_num].strip()) == 0:
+        return False
+
+    # Swap the lines
+    lines[todo_num], lines[target_num] = lines[target_num], lines[todo_num]
+
+    with open(file_path, 'w', encoding="utf-8") as file:
+        file.writelines(lines)
+
+    return True
