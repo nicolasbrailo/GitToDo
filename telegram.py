@@ -185,3 +185,7 @@ class TelBot(TelegramLongpollBot):
         """ Notify all registered users of a reminder triggering """
         for cid in self._accepted_chat_ids:
             self.send_message(cid, f'Reminder! {txt}')
+
+    def on_bot_received_non_cmd_message(self, msg):
+        log.warning('Received unexpected message "%s"', msg)
+
