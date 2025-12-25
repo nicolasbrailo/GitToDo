@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Telegram Bot Test</title>
+    <style>
+        body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+        h1 { color: #333; }
+        .commands { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .commands code { display: block; margin: 5px 0; }
+        form { margin: 20px 0; }
+        input[type="text"] { width: 100%; padding: 10px; font-family: monospace; font-size: 14px; box-sizing: border-box; }
+        button { padding: 10px 20px; background: #0088cc; color: white; border: none; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #006699; }
+        .response { background: #e8f4e8; border: 1px solid #4a4; padding: 15px; border-radius: 5px; margin: 20px 0; white-space: pre-wrap; }
+        .response.empty { background: #f5f5f5; border-color: #ccc; color: #666; }
+        .response.error { background: #ffe8e8; border-color: #c44; }
+        nav { margin-bottom: 20px; }
+        nav a { color: #2196F3; margin-right: 15px; }
+    </style>
+</head>
+<body>
+    <nav><a href="/">ToDos</a> <a href="/raw">Raw</a> <a href="/telegram_test">Commands</a></nav>
+    <h1>Telegram Bot Test</h1>
+
+    <div class="commands">
+        <strong>Available Commands:</strong>
+        <code>/ls [section]</code> - List all ToDos (optionally in a section)
+        <code>/sections</code> - List all sections
+        <code>/add &lt;section&gt; &lt;todo&gt;</code> - Add a ToDo to a section
+        <code>/done &lt;number&gt;</code> - Mark a ToDo as complete
+        <code>/pull</code> - Force git pull
+        <code>/push</code> - Force git commit and push
+    </div>
+
+    <form id="cmd-form">
+        <input type="text" id="cmd-input" name="cmd" placeholder="Enter command, e.g. /ls" autofocus>
+        <button type="submit">Send</button>
+    </form>
+
+    <h3>Response (as Telegram would send):</h3>
+    <div id="response" class="response empty">No response yet. Send a command above.</div>
+
+    <script>
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.getElementById('cmd-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const input = document.getElementById('cmd-input');
+            const cmd = input.value.trim();
+            if (!cmd) return;
+
+            fetch('/api/cmd', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cmd: cmd })
+            })
+            .then(r => r.json())
+            .then(data => {
+                const responseDiv = document.getElementById('response');
+                responseDiv.textContent = data.result;
+                responseDiv.className = 'response' + (data.success ? '' : ' error');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ToDo List</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+        h1 { color: #333; margin-bottom: 30px; }
+        .section { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .section h2 { margin: 0 0 15px 0; color: #444; font-size: 1.3em; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .todo-list { list-style: none; padding: 0; margin: 0; }
+        .todo-list li { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .todo-list li:last-child { border-bottom: none; }
+        .todo-text { flex: 1; color: #333; }
+        .actions { display: flex; gap: 5px; }
+        .actions button { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .move-btn { background: #e0e0e0; color: #555; }
+        .move-btn:hover:not(:disabled) { background: #ccc; }
+        .move-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .done-btn { background: #4CAF50; color: white; }
+        .done-btn:hover { background: #45a049; }
+        .add-form { display: flex; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
+        .add-form input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .add-form button { padding: 10px 20px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .add-form button:hover { background: #1976D2; }
+        .empty { color: #666; text-align: center; padding: 40px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; max-width: 400px; text-align: center; }
+        .modal-content p { margin: 0 0 20px 0; color: #333; }
+        .modal-content .todo-preview { background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 15px 0; font-family: monospace; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: center; }
+        .modal-buttons button { padding: 10px 25px; border: none; border-radius: 4px; cursor: pointer; }
+        .cancel-btn { background: #e0e0e0; }
+        .confirm-btn { background: #f44336; color: white; }
+        nav { margin-bottom: 20px; }
+        nav a { color: #2196F3; margin-right: 15px; }
+    </style>
+</head>
+<body>
+    <nav><a href="/">ToDos</a> <a href="/raw">Raw</a> <a href="/telegram_test">Commands</a></nav>
+    <h1>ToDo List</h1>
+    <div id="content"></div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <p>Mark this todo as done?</p>
+            <div id="modal-todo" class="todo-preview"></div>
+            <div class="modal-buttons">
+                <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+                <button class="confirm-btn" onclick="doDelete()">Mark Done</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pendingDeleteLine = null;
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function loadTodos() {
+            fetch('/api/todos')
+                .then(r => r.json())
+                .then(data => {
+                    renderTodos(data.sections);
+                });
+        }
+
+        let todosData = [];
+
+        function renderTodos(sections) {
+            todosData = sections;
+            const content = document.getElementById('content');
+            if (!sections || sections.length === 0) {
+                content.innerHTML = '<p class="empty">No sections yet. Add a todo using /add command.</p>';
+                return;
+            }
+
+            let html = '';
+            for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+                const section = sections[sIdx];
+                html += `<div class="section"><h2>${escapeHtml(section.name)}</h2>`;
+                html += '<ul class="todo-list">';
+                for (let idx = 0; idx < section.todos.length; idx++) {
+                    const todo = section.todos[idx];
+                    const canMoveUp = idx > 0;
+                    const canMoveDown = idx < section.todos.length - 1;
+                    html += `<li data-line="${todo.line_num}" data-section="${sIdx}" data-idx="${idx}">
+                        <span class="todo-text">${escapeHtml(todo.text)}</span>
+                        <span class="actions">
+                            <button class="move-btn" data-action="move" data-dir="-1" ${!canMoveUp ? 'disabled' : ''}>&#9650;</button>
+                            <button class="move-btn" data-action="move" data-dir="1" ${!canMoveDown ? 'disabled' : ''}>&#9660;</button>
+                            <button class="done-btn" data-action="done">Done</button>
+                        </span>
+                    </li>`;
+                }
+                html += '</ul>';
+                html += `<form class="add-form" data-section="${sIdx}">
+                    <input type="text" placeholder="Add new todo..." required>
+                    <button type="submit">Add</button>
+                </form>`;
+                html += '</div>';
+            }
+            content.innerHTML = html;
+            attachEventListeners();
+        }
+
+        function attachEventListeners() {
+            document.querySelectorAll('.todo-list button[data-action]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const li = this.closest('li');
+                    const lineNum = parseInt(li.dataset.line);
+                    const sectionIdx = parseInt(li.dataset.section);
+                    const todoIdx = parseInt(li.dataset.idx);
+                    const action = this.dataset.action;
+
+                    if (action === 'done') {
+                        const text = todosData[sectionIdx].todos[todoIdx].text;
+                        confirmDone(lineNum, text);
+                    } else if (action === 'move') {
+                        const dir = parseInt(this.dataset.dir);
+                        moveTodo(lineNum, dir);
+                    }
+                });
+            });
+
+            document.querySelectorAll('.add-form').forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const sectionIdx = parseInt(this.dataset.section);
+                    const sectionName = todosData[sectionIdx].name;
+                    const input = this.querySelector('input');
+                    const text = input.value.trim();
+                    if (!text) return;
+
+                    fetch('/api/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ section: sectionName, text: text })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            input.value = '';
+                            loadTodos();
+                        }
+                        else alert('Error: ' + data.error);
+                    });
+                });
+            });
+        }
+
+        function confirmDone(lineNum, text) {
+            pendingDeleteLine = lineNum;
+            document.getElementById('modal-todo').textContent = text;
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+            pendingDeleteLine = null;
+        }
+
+        function doDelete() {
+            if (pendingDeleteLine !== null) {
+                fetch('/api/done/' + pendingDeleteLine, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) loadTodos();
+                        else alert('Error: ' + data.error);
+                    });
+            }
+            closeModal();
+        }
+
+        function moveTodo(lineNum, direction) {
+            fetch('/api/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ line: lineNum, direction: direction })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) loadTodos();
+                else alert('Error: ' + data.error);
+            });
+        }
+
+        loadTodos();
+    </script>
+</body>
+</html>

@@ -277,18 +277,30 @@ def _guess_reminder_date_from_value_only(input_str):
     return target_time
 
 
-DEFAULT_REMINDER_TOK = '@remindme'
-ALT_REMINDER_TOK = '@r'
+DEFAULT_REMINDER_TOK = '@reminder'
+REMINDER_INPUT_TOKENS = ['@reminder', '@remindme', '@r', '@at', '@in']
 DEFAULT_REMINDER_SET_TOK = '@remind_at'
+
+
+def normalize_reminder_token(text):
+    """ Replace any supported reminder token with the canonical @reminder token """
+    for tok in REMINDER_INPUT_TOKENS:
+        if tok == DEFAULT_REMINDER_TOK:
+            continue
+        # Case-insensitive replacement, matching whole token
+        pattern = re.compile(re.escape(tok) + r'(?=\s|$)', re.IGNORECASE)
+        text = pattern.sub(DEFAULT_REMINDER_TOK, text)
+    return text
 
 
 def guess_reminder_date(todo_ln):
     """ Try to parse an absolute date from a user proivded one """
-    reminder = _extract_reminder(todo_ln, DEFAULT_REMINDER_TOK)
-    if not reminder:
-        reminder = _extract_reminder(todo_ln, ALT_REMINDER_TOK)
-
-    if not reminder:
+    # Try each supported token
+    for tok in REMINDER_INPUT_TOKENS:
+        reminder = _extract_reminder(todo_ln, tok)
+        if reminder:
+            break
+    else:
         return None
 
     value, unit = reminder
@@ -342,6 +354,25 @@ def get_reminder_date_if_set(todo):
         return None
 
     return reminder_date
+
+
+def strip_reminder_tokens(todo):
+    """ Remove reminder tokens from a todo line for display purposes.
+    Strips @reminder and the [@remind_at ...] metadata. """
+    # Remove the [@remind_at ...] metadata block
+    reminder_set_tok = f'[{DEFAULT_REMINDER_SET_TOK} '
+    if reminder_set_tok in todo:
+        start = todo.find(reminder_set_tok)
+        end = todo.find(']', start)
+        if end != -1:
+            todo = todo[:start] + todo[end + 1:]
+
+    # Remove @reminder and its time specification
+    for tok in REMINDER_INPUT_TOKENS:
+        pattern = re.compile(re.escape(tok) + r'\s+\S+(?:\s+\S+)?', re.IGNORECASE)
+        todo = pattern.sub('', todo)
+
+    return todo.strip()
 
 
 class ReminderScheduler:

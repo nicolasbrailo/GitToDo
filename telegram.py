@@ -1,7 +1,7 @@
 """ ToDo list Telegram bot: integrates a file-backed ToDo list with a Telegram set of commands """
 
 import logging
-from reminders import guess_reminder_date, mark_for_reminder_date, get_reminder_date_if_set
+from reminders import guess_reminder_date, mark_for_reminder_date, get_reminder_date_if_set, strip_reminder_tokens, normalize_reminder_token
 from pytelegrambot import TelegramLongpollBot
 from md_helpers import (md_create_if_not_exists,
                         md_get_all,
@@ -101,7 +101,7 @@ class TelBot(TelegramLongpollBot):
 
     def _add(self, _bot, msg):
         section = msg['cmd_args'][0]
-        todo = ' '.join(msg['cmd_args'][1:])
+        todo = normalize_reminder_token(' '.join(msg['cmd_args'][1:]))
         log.info("Add ToDo to section %s", section)
 
         confirm_msg = 'OK'
@@ -183,8 +183,9 @@ class TelBot(TelegramLongpollBot):
 
     def send_reminder_msg(self, txt):
         """ Notify all registered users of a reminder triggering """
+        clean_txt = strip_reminder_tokens(txt)
         for cid in self._accepted_chat_ids:
-            self.send_message(cid, f'Reminder! {txt}')
+            self.send_message(cid, f'Reminder: {clean_txt}')
 
     def on_bot_received_non_cmd_message(self, msg):
         log.warning('Received unexpected message "%s"', msg)

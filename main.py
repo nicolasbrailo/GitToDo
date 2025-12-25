@@ -8,14 +8,12 @@ import sys
 import threading
 import time
 
-from flask import Flask, Response, request, redirect
-from html import escape as html_escape
-from urllib.parse import quote, unquote
+from flask import Flask, Response, request, send_from_directory
 
 sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(), "./PyTelegramBot"))
 
 from telegram import TelBot
-from reminders import ReminderScheduler, guess_reminder_date, mark_for_reminder_date
+from reminders import ReminderScheduler, guess_reminder_date, mark_for_reminder_date, normalize_reminder_token
 from git import GitIntegration
 from md_helpers import (md_get_all,
                         md_get_sections,
@@ -66,7 +64,7 @@ git.register_failed_git_op_cb(bot.on_failed_git_op)
 reminders.register_sender(bot)
 
 # Flask web UI
-app = Flask(__name__)
+app = Flask(__name__, static_folder='www', static_url_path='/static')
 
 
 def process_command(cmd_input):
@@ -96,7 +94,7 @@ def process_command(cmd_input):
             if len(args) < 2:
                 return (False, 'Error: Usage /add <section> <todo>')
             section = args[0]
-            todo = ' '.join(args[1:])
+            todo = normalize_reminder_token(' '.join(args[1:]))
             result = 'OK'
             try:
                 maybe_reminder = guess_reminder_date(todo)
@@ -174,58 +172,22 @@ Example: curl -X POST -d "cmd=/ls" http://localhost:5000/cmd
     return Response(result, mimetype='text/plain'), status
 
 
-@app.route('/telegram_test', methods=['GET', 'POST'])
+@app.route('/telegram_test')
 def telegram_test_page():
     """ HTML page to test Telegram commands """
-    if request.method == 'POST':
-        cmd_input = request.form.get('cmd', '')
+    return send_from_directory('www', 'telegram_test.html')
+
+
+@app.route('/api/cmd', methods=['POST'])
+def api_cmd():
+    """ API endpoint to process commands and return JSON """
+    try:
+        data = request.get_json()
+        cmd_input = data.get('cmd', '')
         success, result = process_command(cmd_input)
-        return redirect(f'/telegram_test?response={quote(result)}')
-
-    response = request.args.get('response', '')
-    if response:
-        response = html_escape(unquote(response))
-
-    html = f'''<!DOCTYPE html>
-<html>
-<head>
-    <title>Telegram Bot Test</title>
-    <style>
-        body {{ font-family: monospace; max-width: 800px; margin: 40px auto; padding: 0 20px; }}
-        h1 {{ color: #333; }}
-        .commands {{ background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-        .commands code {{ display: block; margin: 5px 0; }}
-        form {{ margin: 20px 0; }}
-        input[type="text"] {{ width: 100%; padding: 10px; font-family: monospace; font-size: 14px; box-sizing: border-box; }}
-        button {{ padding: 10px 20px; background: #0088cc; color: white; border: none; cursor: pointer; margin-top: 10px; }}
-        button:hover {{ background: #006699; }}
-        .response {{ background: #e8f4e8; border: 1px solid #4a4; padding: 15px; border-radius: 5px; margin: 20px 0; white-space: pre-wrap; }}
-        .response.empty {{ background: #f5f5f5; border-color: #ccc; color: #666; }}
-    </style>
-</head>
-<body>
-    <h1>Telegram Bot Test</h1>
-
-    <div class="commands">
-        <strong>Available Commands:</strong>
-        <code>/ls [section]</code> - List all ToDos (optionally in a section)
-        <code>/sections</code> - List all sections
-        <code>/add &lt;section&gt; &lt;todo&gt;</code> - Add a ToDo to a section
-        <code>/done &lt;number&gt;</code> - Mark a ToDo as complete
-        <code>/pull</code> - Force git pull
-        <code>/push</code> - Force git commit and push
-    </div>
-
-    <form method="POST">
-        <input type="text" name="cmd" placeholder="Enter command, e.g. /ls" autofocus>
-        <button type="submit">Send</button>
-    </form>
-
-    <h3>Response (as Telegram would send):</h3>
-    <div class="response{' empty' if not response else ''}">{response if response else 'No response yet. Send a command above.'}</div>
-</body>
-</html>'''
-    return Response(html, mimetype='text/html')
+        return {'success': success, 'result': result}
+    except Exception as ex:
+        return {'success': False, 'result': str(ex)}
 
 
 def parse_todo_file():
@@ -258,154 +220,17 @@ def parse_todo_file():
 
     return sections
 
-
 @app.route('/')
 def todos_page():
     """ Interactive todo list page """
+    return send_from_directory('www', 'index.html')
+
+
+@app.route('/api/todos')
+def api_todos():
+    """ API endpoint to get all todos as JSON """
     sections = parse_todo_file()
-
-    todos_html = ''
-    for section in sections:
-        todos_html += f'<div class="section"><h2>{html_escape(section["name"])}</h2>'
-        todos_html += '<ul class="todo-list">'
-        for idx, todo in enumerate(section['todos']):
-            line_num = todo['line_num']
-            text = html_escape(todo['text'])
-            can_move_up = idx > 0
-            can_move_down = idx < len(section['todos']) - 1
-
-            todos_html += f'''<li data-line="{line_num}">
-                <span class="todo-text">{text}</span>
-                <span class="actions">
-                    <button class="move-btn" onclick="moveTodo({line_num}, -1)" {'disabled' if not can_move_up else ''}>&#9650;</button>
-                    <button class="move-btn" onclick="moveTodo({line_num}, 1)" {'disabled' if not can_move_down else ''}>&#9660;</button>
-                    <button class="done-btn" onclick="confirmDone({line_num}, '{text.replace("'", "\\'")}')">Done</button>
-                </span>
-            </li>'''
-        todos_html += '</ul>'
-        todos_html += f'''<form class="add-form" onsubmit="addTodo(event, '{html_escape(section["name"])}')">
-            <input type="text" placeholder="Add new todo..." required>
-            <button type="submit">Add</button>
-        </form>'''
-        todos_html += '</div>'
-
-    if not sections:
-        todos_html = '<p class="empty">No sections yet. Add a todo using /add command.</p>'
-
-    html = f'''<!DOCTYPE html>
-<html>
-<head>
-    <title>ToDo List</title>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }}
-        h1 {{ color: #333; margin-bottom: 30px; }}
-        .section {{ background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .section h2 {{ margin: 0 0 15px 0; color: #444; font-size: 1.3em; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
-        .todo-list {{ list-style: none; padding: 0; margin: 0; }}
-        .todo-list li {{ display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #eee; }}
-        .todo-list li:last-child {{ border-bottom: none; }}
-        .todo-text {{ flex: 1; color: #333; }}
-        .actions {{ display: flex; gap: 5px; }}
-        .actions button {{ padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }}
-        .move-btn {{ background: #e0e0e0; color: #555; }}
-        .move-btn:hover:not(:disabled) {{ background: #ccc; }}
-        .move-btn:disabled {{ opacity: 0.3; cursor: not-allowed; }}
-        .done-btn {{ background: #4CAF50; color: white; }}
-        .done-btn:hover {{ background: #45a049; }}
-        .add-form {{ display: flex; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }}
-        .add-form input {{ flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }}
-        .add-form button {{ padding: 10px 20px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }}
-        .add-form button:hover {{ background: #1976D2; }}
-        .empty {{ color: #666; text-align: center; padding: 40px; }}
-        .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }}
-        .modal.show {{ display: flex; }}
-        .modal-content {{ background: white; padding: 25px; border-radius: 8px; max-width: 400px; text-align: center; }}
-        .modal-content p {{ margin: 0 0 20px 0; color: #333; }}
-        .modal-content .todo-preview {{ background: #f5f5f5; padding: 10px; border-radius: 4px; margin: 15px 0; font-family: monospace; }}
-        .modal-buttons {{ display: flex; gap: 10px; justify-content: center; }}
-        .modal-buttons button {{ padding: 10px 25px; border: none; border-radius: 4px; cursor: pointer; }}
-        .cancel-btn {{ background: #e0e0e0; }}
-        .confirm-btn {{ background: #f44336; color: white; }}
-        nav {{ margin-bottom: 20px; }}
-        nav a {{ color: #2196F3; margin-right: 15px; }}
-    </style>
-</head>
-<body>
-    <nav><a href="/">ToDos</a> <a href="/raw">Raw</a> <a href="/telegram_test">Commands</a></nav>
-    <h1>ToDo List</h1>
-    {todos_html}
-
-    <div id="modal" class="modal">
-        <div class="modal-content">
-            <p>Mark this todo as done?</p>
-            <div id="modal-todo" class="todo-preview"></div>
-            <div class="modal-buttons">
-                <button class="cancel-btn" onclick="closeModal()">Cancel</button>
-                <button class="confirm-btn" onclick="doDelete()">Mark Done</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let pendingDeleteLine = null;
-
-        function confirmDone(lineNum, text) {{
-            pendingDeleteLine = lineNum;
-            document.getElementById('modal-todo').textContent = text;
-            document.getElementById('modal').classList.add('show');
-        }}
-
-        function closeModal() {{
-            document.getElementById('modal').classList.remove('show');
-            pendingDeleteLine = null;
-        }}
-
-        function doDelete() {{
-            if (pendingDeleteLine !== null) {{
-                fetch('/api/done/' + pendingDeleteLine, {{ method: 'POST' }})
-                    .then(r => r.json())
-                    .then(data => {{
-                        if (data.success) location.reload();
-                        else alert('Error: ' + data.error);
-                    }});
-            }}
-            closeModal();
-        }}
-
-        function moveTodo(lineNum, direction) {{
-            fetch('/api/move', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ line: lineNum, direction: direction }})
-            }})
-            .then(r => r.json())
-            .then(data => {{
-                if (data.success) location.reload();
-                else alert('Error: ' + data.error);
-            }});
-        }}
-
-        function addTodo(event, section) {{
-            event.preventDefault();
-            const input = event.target.querySelector('input');
-            const text = input.value.trim();
-            if (!text) return;
-
-            fetch('/api/add', {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ section: section, text: text }})
-            }})
-            .then(r => r.json())
-            .then(data => {{
-                if (data.success) location.reload();
-                else alert('Error: ' + data.error);
-            }});
-        }}
-    </script>
-</body>
-</html>'''
-    return Response(html, mimetype='text/html')
+    return {'sections': sections}
 
 
 @app.route('/api/done/<int:line_num>', methods=['POST'])
@@ -443,7 +268,13 @@ def api_add():
     try:
         data = request.get_json()
         section = data['section']
-        text = data['text']
+        text = normalize_reminder_token(data['text'])
+        try:
+            maybe_reminder = guess_reminder_date(text)
+            if maybe_reminder is not None:
+                text = mark_for_reminder_date(text, maybe_reminder)
+        except ValueError:
+            pass  # Ignore reminder parsing errors for API
         md_add_to_section(cfg['todo_filepath'], section, text)
         on_file_updated()
         return {'success': True}
@@ -453,7 +284,7 @@ def api_add():
 
 def run_flask():
     """ Run Flask in a separate thread """
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=4300, debug=False, use_reloader=False)
 
 
 flask_thread = threading.Thread(target=run_flask, daemon=True)
