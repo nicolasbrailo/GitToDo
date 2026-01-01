@@ -82,7 +82,7 @@
             let html = '';
             for (let sIdx = 0; sIdx < sections.length; sIdx++) {
                 const section = sections[sIdx];
-                html += `<div class="section"><h2>${escapeHtml(section.name)}</h2>`;
+                html += `<div class="section"><h2>${escapeHtml(section.name)} [${section.todos.length} ToDos]</h2>`;
                 html += '<ul class="todo-list">';
                 for (let idx = 0; idx < section.todos.length; idx++) {
                     const todo = section.todos[idx];
