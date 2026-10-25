@@ -36,6 +36,9 @@ log = logging.getLogger(__name__)
 with open('config.json', 'r', encoding="utf-8") as fp:
     cfg = json.loads(fp.read())
 
+# Ensure a port is defined
+cfg['listen_port']
+
 # Create todo file if it doesn't exist
 pathlib.Path(cfg['todo_filepath']).touch(exist_ok=True)
 
@@ -284,7 +287,7 @@ def api_add():
 
 def run_flask():
     """ Run Flask in a separate thread """
-    app.run(host='0.0.0.0', port=4300, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=cfg['listen_port'], debug=False, use_reloader=False)
 
 
 flask_thread = threading.Thread(target=run_flask, daemon=True)
@@ -293,7 +296,7 @@ flask_thread.start()
 log.info(
     "Running GitToDo service. Monitoring ToDo file @ %s",
     cfg['todo_filepath'])
-log.info("Web UI at http://0.0.0.0:5000/ | Raw: /raw | Commands: /cmd | Test: /telegram_test")
+log.info("Web UI at http://0.0.0.0:%s/ | Raw: /raw | Commands: /cmd | Test: /telegram_test", cfg['listen_port'])
 log.info("Stop with `kill %s` or Ctrl-C", os.getpid())
 try:
     while True:

@@ -1,0 +1,18 @@
+[Unit]
+Description=GitToDo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=pipenv run python /home/batman/src/GitToDo/main.py
+WorkingDirectory=/home/batman/run/GitToDo/
+Restart=always
+RestartSec=10
+RestartSteps=6
+RestartMaxDelaySec=10min
+StandardError=inherit
+StandardOutput=inherit
+User=batman
+
+[Install]
+WantedBy=multi-user.target
